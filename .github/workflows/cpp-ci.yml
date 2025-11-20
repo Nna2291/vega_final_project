@@ -20,11 +20,16 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential \
             cmake \
-            libcurl4-openssl-dev
+            libcurl4-openssl-dev \
+            gcovr
 
       - name: Configure CMake
         working-directory: api_cli
-        run: cmake -S . -B build -DBUILD_TESTING=ON
+        run: |
+          cmake -S . -B build -DBUILD_TESTING=ON \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_FLAGS="--coverage" \
+            -DCMAKE_EXE_LINKER_FLAGS="--coverage"
 
       - name: Build
         working-directory: api_cli
@@ -35,5 +40,19 @@ jobs:
         env:
           CTEST_OUTPUT_ON_FAILURE: 1
         run: ctest
+
+      - name: Generate coverage report
+        working-directory: api_cli/build
+        run: |
+          gcovr -r .. --exclude '.*tests/.*' --xml-pretty -o coverage.xml
+          gcovr -r .. --exclude '.*tests/.*' --html --html-details -o coverage.html
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            api_cli/build/coverage.xml
+            api_cli/build/coverage.html
 
 
