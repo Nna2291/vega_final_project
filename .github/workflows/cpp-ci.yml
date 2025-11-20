@@ -1,0 +1,58 @@
+name: C++ CI
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            cmake \
+            libcurl4-openssl-dev \
+            gcovr
+
+      - name: Configure CMake
+        working-directory: api_cli
+        run: |
+          cmake -S . -B build -DBUILD_TESTING=ON \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_FLAGS="--coverage" \
+            -DCMAKE_EXE_LINKER_FLAGS="--coverage"
+
+      - name: Build
+        working-directory: api_cli
+        run: cmake --build build --config Release -- -j2
+
+      - name: Run tests
+        working-directory: api_cli/build
+        env:
+          CTEST_OUTPUT_ON_FAILURE: 1
+        run: ctest
+
+      - name: Generate coverage report
+        working-directory: api_cli/build
+        run: |
+          gcovr -r .. --exclude '.*tests/.*' --xml-pretty -o coverage.xml
+          gcovr -r .. --exclude '.*tests/.*' --html --html-details -o coverage.html
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            api_cli/build/coverage.xml
+            api_cli/build/coverage.html
+
+
