@@ -1,6 +1,8 @@
 # Многопоточный прайсинг деривативов
 
-(Wiki)[https://github.com/Nna2291/vega_final_project/wiki]
+[Docs](https://github.com/Nna2291/vega_final_project/wiki)
+
+[Задачи в проекте и ход разработки](https://github.com/users/Nna2291/projects/4)
 
 Проект выполнен в рамках открытого курса по программной инженерии
 Института Вега.
