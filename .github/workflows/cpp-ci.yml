@@ -1,0 +1,39 @@
+name: C++ CI
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            cmake \
+            libcurl4-openssl-dev
+
+      - name: Configure CMake
+        working-directory: api_cli
+        run: cmake -S . -B build -DBUILD_TESTING=ON
+
+      - name: Build
+        working-directory: api_cli
+        run: cmake --build build --config Release -- -j2
+
+      - name: Run tests
+        working-directory: api_cli/build
+        env:
+          CTEST_OUTPUT_ON_FAILURE: 1
+        run: ctest
+
+
