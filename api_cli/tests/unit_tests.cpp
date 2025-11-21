@@ -5,6 +5,11 @@
 
 #include <gtest/gtest.h>
 
+#include <map>
+#include <memory>
+#include <mutex>
+#include <set>
+
 // Sample response similar to
 // https://iss.moex.com/iss/engines/stock/markets/shares/boards/tqbr/securities/sber.json?iss.meta=off
 static const char* SAMPLE_JSON = R"json(
@@ -83,5 +88,87 @@ TEST(PricePipeTest, CloseStopsReaders) {
 TEST(TickerLoaderTest, StubReturnsNonEmpty) {
     auto tickers = load_tickers_from_db();
     EXPECT_FALSE(tickers.empty());
+}
+
+class PricingServiceMockProvider : public MarketDataProvider {
+public:
+    PriceUpdate get_price(const std::string& ticker) override {
+        std::lock_guard<std::mutex> lock(mutex_);
+        double& v = prices_[ticker];
+        if (v == 0.0) {
+            v = 100.0;
+        } else {
+            v += 1.0;
+        }
+        PriceUpdate upd;
+        upd.timestamp = ++counter_;
+        upd.ticker = ticker;
+        upd.price = v;
+        upd.status = "OK";
+        upd.error.clear();
+        return upd;
+    }
+
+private:
+    std::mutex mutex_;
+    std::map<std::string, double> prices_;
+    std::int64_t counter_{0};
+};
+
+class FailingProvider : public MarketDataProvider {
+public:
+    PriceUpdate get_price(const std::string& ticker) override {
+        throw std::runtime_error("network error");
+    }
+};
+
+TEST(PricingServiceTest, ProducesUpdatesForTickers) {
+    auto provider = std::make_shared<PricingServiceMockProvider>();
+    PricePipe pipe;
+    std::vector<std::string> initial_tickers = {"AAA", "BBB", "CCC"};
+
+    PricingService service(provider, initial_tickers, pipe, 2, 10);
+    service.start();
+
+    std::set<std::string> seen_tickers;
+    const int kMessagesToRead = 10;
+
+    for (int i = 0; i < kMessagesToRead; ++i) {
+        PriceUpdate upd;
+        ASSERT_TRUE(pipe.read(upd));
+        if (upd.status == "OK") {
+            seen_tickers.insert(upd.ticker);
+            EXPECT_GT(upd.price, 0.0);
+        }
+    }
+
+    service.stop();
+
+    // После остановки возможны дополнительные сообщения в очереди — вычитаем их.
+    PriceUpdate upd;
+    while (pipe.read(upd)) {
+        if (upd.status == "OK") {
+            seen_tickers.insert(upd.ticker);
+        }
+    }
+
+    EXPECT_FALSE(seen_tickers.empty());
+}
+
+TEST(PricingServiceTest, EmitsErrorOnException) {
+    auto provider = std::make_shared<FailingProvider>();
+    PricePipe pipe;
+    std::vector<std::string> initial_tickers = {"ERR_TICK"};
+
+    PricingService service(provider, initial_tickers, pipe, 1, 10);
+    service.start();
+
+    PriceUpdate upd;
+    ASSERT_TRUE(pipe.read(upd));
+    EXPECT_EQ(upd.ticker, "ERR_TICK");
+    EXPECT_EQ(upd.status, "ERROR");
+    EXPECT_FALSE(upd.error.empty());
+
+    service.stop();
 }
 
