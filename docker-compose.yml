@@ -1,0 +1,74 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: vega_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vega_user
+      POSTGRES_PASSWORD: vega_password
+      POSTGRES_DB: vega_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    command:
+      - postgres
+      - -c
+      - max_connections=200
+      - -c
+      - shared_buffers=512MB
+      - -c
+      - wal_level=logical
+      - -c
+      - synchronous_commit=off
+      - -c
+      - checkpoint_timeout=10min
+      - -c
+      - max_wal_size=2GB
+      - -c
+      - min_wal_size=256MB
+      - -c
+      - effective_cache_size=1536MB
+      - -c
+      - work_mem=16MB
+      - -c
+      - maintenance_work_mem=256MB
+
+  db_migrator:
+    image: postgres:16
+    container_name: vega_db_migrator
+    depends_on:
+      - postgres
+    environment:
+      PGPASSWORD: vega_password
+    volumes:
+      - ./db_migrations:/db_migrations:ro
+    command:
+      - bash
+      - -lc
+      - |
+        set -e
+        echo "Waiting for postgres to be ready..."
+        until pg_isready -h postgres -U vega_user -d vega_db >/dev/null 2>&1; do
+          sleep 1
+        done
+        echo "Postgres is ready, running migrations"
+        shopt -s nullglob
+        files=(/db_migrations/*.sql)
+        if [ $${#files[@]} -eq 0 ]; then
+          echo "No migration files found in /db_migrations"
+          exit 0
+        fi
+        for f in "$${files[@]}"; do
+          echo "Running migration $$f"
+          psql -h postgres -U vega_user -d vega_db -v ON_ERROR_STOP=1 -f "$$f"
+        done
+    restart: "no"
+
+volumes:
+  pgdata:
+    driver: local
+
+
