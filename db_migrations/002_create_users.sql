@@ -25,4 +25,8 @@ GRANT SELECT ON TABLE ticker, bsm_params, ticker_price TO bsm_read;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE ticker_price TO bsm_write_prices;
 
+GRANT SELECT ON TABLE ticker, bsm_params, ticker_price TO bsm_write_prices;
+
+GRANT USAGE, SELECT ON SEQUENCE ticker_price_id_seq TO bsm_write_prices;
+
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE bsm_params TO bsm_write_params;

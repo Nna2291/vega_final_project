@@ -10,7 +10,7 @@ add_library(bsm_lib
     src/price_pipe.cpp
     src/option_pricer.cpp
     src/bsm_service.cpp
-    src/influx_writer.cpp
+    src/postgres_writer.cpp
 )
 
 target_include_directories(bsm_lib
@@ -18,10 +18,10 @@ target_include_directories(bsm_lib
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-# HTTP клиент для записи в InfluxDB
-find_package(CURL REQUIRED)
+# Клиент PostgreSQL (libpq) для чтения конфигурации и записи результатов.
+find_package(PostgreSQL REQUIRED)
 target_link_libraries(bsm_lib
-    PRIVATE CURL::libcurl
+    PRIVATE PostgreSQL::PostgreSQL
 )
 
 add_executable(bsm_pricing
