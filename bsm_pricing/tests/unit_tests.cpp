@@ -26,10 +26,9 @@ TEST(OptionPricerTest, DeepInTheMoney) {
   double T = 1.0;
 
   double price = OptionPricer::black_scholes_call(S, K, r, q, sigma, T);
-  // Для глубоко в деньгах цена опциона близка к S - K * exp(-rT)
   double intrinsic = S - K * std::exp(-r * T);
-  EXPECT_GT(price, intrinsic); // есть временная стоимость
-  EXPECT_NEAR(price, intrinsic, 5.0); // но недалеко от внутренней стоимости
+  EXPECT_GT(price, intrinsic);
+  EXPECT_NEAR(price, intrinsic, 5.0);
 }
 
 TEST(OptionPricerTest, ShortMaturitySmallVol) {
@@ -38,11 +37,9 @@ TEST(OptionPricerTest, ShortMaturitySmallVol) {
   double r = 0.01;
   double q = 0.0;
   double sigma = 0.05;
-  double T = 1.0 / 252.0; // один торговый день
+  double T = 1.0 / 252.0;
 
   double price = OptionPricer::black_scholes_call(S, K, r, q, sigma, T);
-  // При коротком сроке и малой воле цена должна быть маленькой, но
-  // положительной
   EXPECT_GT(price, 0.0);
   EXPECT_LT(price, 2.0);
 }

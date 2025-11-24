@@ -18,7 +18,6 @@ target_include_directories(bsm_lib
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-# Клиент PostgreSQL (libpq) для чтения конфигурации и записи результатов.
 find_package(PostgreSQL REQUIRED)
 target_link_libraries(bsm_lib
     PRIVATE PostgreSQL::PostgreSQL
