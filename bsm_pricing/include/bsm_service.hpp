@@ -43,6 +43,7 @@ private:
   void worker_thread();
   void dispatcher_thread();
   void config_thread();
+  void db_thread();
 
   PricePipe<std::string> &json_pipe_;
 
@@ -50,6 +51,14 @@ private:
   std::mutex queue_mutex_;
   std::condition_variable queue_cv_;
   bool queue_closed_{false};
+
+  // Очередь для рассчитанных котировок, которые должен записывать один поток в
+  // БД.
+  std::queue<OptionQuote> out_queue_;
+  std::mutex out_mutex_;
+  std::condition_variable out_cv_;
+  bool out_closed_{false};
+  std::atomic<std::size_t> out_queue_size_{0};
 
   std::size_t num_threads_;
 
@@ -63,5 +72,6 @@ private:
   std::atomic<bool> running_{false};
   std::vector<std::thread> threads_;
   std::thread dispatcher_thread_;
+  std::thread db_thread_;
   std::thread config_thread_;
 };

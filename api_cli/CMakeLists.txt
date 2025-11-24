@@ -20,8 +20,11 @@ target_include_directories(moex_api
 )
 
 find_package(CURL REQUIRED)
+find_package(PostgreSQL REQUIRED)
 target_link_libraries(moex_api
-    PRIVATE CURL::libcurl
+    PRIVATE
+        CURL::libcurl
+        PostgreSQL::PostgreSQL
 )
 
 add_executable(pricing_service

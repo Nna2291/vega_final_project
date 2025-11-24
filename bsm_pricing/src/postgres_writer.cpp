@@ -53,18 +53,21 @@ bool PostgresWriter::write(const OptionQuote &quote) {
   std::string ts_str = std::to_string(quote.timestamp);
   std::string ticker_id_str = std::to_string(quote.ticker_id);
   std::string conf_id_str = std::to_string(quote.conf_id);
+
+  std::string opt_price_str = std::to_string(quote.underlying_price);
   std::string calc_price_str = std::to_string(quote.option_price);
 
-  const char *paramValues[4] = {ts_str.c_str(), ticker_id_str.c_str(),
-                                conf_id_str.c_str(), calc_price_str.c_str()};
+  const char *paramValues[5] = {ts_str.c_str(), ticker_id_str.c_str(),
+                                conf_id_str.c_str(), opt_price_str.c_str(),
+                                calc_price_str.c_str()};
 
   PGresult *res =
       PQexecParams(conn_,
                    "INSERT INTO ticker_price (ts_exchange, ticker_id, conf_id, "
-                   "option_price, calculated_price) "
+                   "base_price, calculated_price) "
                    "VALUES (to_timestamp($1), $2::bigint, $3::bigint, "
-                   "$4::double precision, $4::double precision);",
-                   4, nullptr, paramValues, nullptr, nullptr, 0);
+                   "$4::double precision, $5::double precision);",
+                   5, nullptr, paramValues, nullptr, nullptr, 0);
 
   if (PQresultStatus(res) != PGRES_COMMAND_OK) {
     std::cerr << "PostgresWriter: insert into ticker_price failed: "

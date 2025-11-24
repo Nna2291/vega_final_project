@@ -1,5 +1,6 @@
 #include "bsm_service.hpp"
 
+#include <chrono>
 #include <iostream>
 #include <postgresql/libpq-fe.h>
 
@@ -75,6 +76,7 @@ void BsmService::start() {
     threads_.emplace_back(&BsmService::worker_thread, this);
   }
   dispatcher_thread_ = std::thread(&BsmService::dispatcher_thread, this);
+  db_thread_ = std::thread(&BsmService::db_thread, this);
   config_thread_ = std::thread(&BsmService::config_thread, this);
 }
 
@@ -82,33 +84,40 @@ void BsmService::stop() {
   if (!running_.exchange(false)) {
     return;
   }
+  {
+    std::lock_guard<std::mutex> lock(queue_mutex_);
+    queue_closed_ = true;
+  }
+  queue_cv_.notify_all();
+
+  // Ждём завершения потоков-диспетчеров JSON и вычислителей.
+  if (dispatcher_thread_.joinable()) {
+    dispatcher_thread_.join();
+  }
   for (auto &t : threads_) {
     if (t.joinable()) {
       t.join();
     }
   }
   threads_.clear();
+
+  // После завершения вычислителей больше не будет новых котировок — закрываем
+  // очередь out_queue_.
   {
-    std::lock_guard<std::mutex> lock(queue_mutex_);
-    queue_closed_ = true;
+    std::lock_guard<std::mutex> lock(out_mutex_);
+    out_closed_ = true;
   }
-  queue_cv_.notify_all();
-  if (dispatcher_thread_.joinable()) {
-    dispatcher_thread_.join();
+  out_cv_.notify_all();
+  if (db_thread_.joinable()) {
+    db_thread_.join();
   }
+
   if (config_thread_.joinable()) {
     config_thread_.join();
   }
 }
 
 void BsmService::worker_thread() {
-  PostgresWriter writer(conninfo_);
-  if (!writer.is_connected()) {
-    std::cerr
-        << "PostgresWriter: connection is not ready in BsmService worker, "
-        << "results will be printed to stdout\n";
-  }
-
   while (true) {
     std::string line;
     {
@@ -159,16 +168,16 @@ void BsmService::worker_thread() {
       out.error.clear();
     }
 
-    if (writer.is_connected()) {
-      writer.write(out);
-    } else {
-      std::cout << "{" << "\"timestamp\":" << out.timestamp << ","
-                << "\"ticker\":\"" << out.ticker << "\","
-                << "\"underlying_price\":" << out.underlying_price << ","
-                << "\"option_price\":" << out.option_price << ","
-                << "\"status\":\"" << out.status << "\"," << "\"error\":\""
-                << out.error << "\"" << "}\n";
+    // Рабочий поток только считает цену и кладёт результат в очередь для
+    // потока записи в БД.
+    {
+      std::lock_guard<std::mutex> lock(out_mutex_);
+      if (!out_closed_) {
+        out_queue_.push(out);
+        ++out_queue_size_;
+      }
     }
+    out_cv_.notify_one();
   }
 }
 
@@ -193,6 +202,55 @@ void BsmService::dispatcher_thread() {
     queue_closed_ = true;
   }
   queue_cv_.notify_all();
+}
+
+void BsmService::db_thread() {
+  PostgresWriter writer(conninfo_);
+  if (!writer.is_connected()) {
+    std::cerr
+        << "PostgresWriter: connection is not ready in BsmService db_thread, "
+        << "results will be printed to stdout\n";
+  }
+
+  using namespace std::chrono_literals;
+  auto last_log = std::chrono::steady_clock::now();
+
+  while (true) {
+    OptionQuote out{};
+    {
+      std::unique_lock<std::mutex> lock(out_mutex_);
+      out_cv_.wait(lock, [this] { return out_closed_ || !out_queue_.empty(); });
+      if (out_queue_.empty() && out_closed_) {
+        break;
+      }
+      out = out_queue_.front();
+      out_queue_.pop();
+      --out_queue_size_;
+    }
+
+    if (writer.is_connected()) {
+      if (!writer.write(out)) {
+        // В случае ошибки записи детали уже выведены внутри PostgresWriter.
+        // При желании можно добавить fallback в stdout, но пока просто
+        // продолжаем.
+      }
+    } else {
+      std::cout << "{" << "\"timestamp\":" << out.timestamp << ","
+                << "\"ticker\":\"" << out.ticker << "\","
+                << "\"underlying_price\":" << out.underlying_price << ","
+                << "\"option_price\":" << out.option_price << ","
+                << "\"status\":\"" << out.status << "\"," << "\"error\":\""
+                << out.error << "\"" << "}\n";
+    }
+
+    // Периодически выводим размер очереди на запись в БД.
+    auto now = std::chrono::steady_clock::now();
+    if (now - last_log >= 1s) {
+      std::cerr << "BsmService: pending DB writes: " << out_queue_size_.load()
+                << "\n";
+      last_log = now;
+    }
+  }
 }
 
 void BsmService::config_thread() {
