@@ -43,11 +43,9 @@ if(BUILD_TESTING)
         googletest
         URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
     )
-    # For MSVC, but harmless elsewhere.
     set(gtest_force_shared_crt OFF CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(googletest)
 
     add_subdirectory(tests)
 endif()
-
 

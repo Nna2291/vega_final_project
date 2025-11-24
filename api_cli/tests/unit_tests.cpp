@@ -1,6 +1,7 @@
 #include "moex_client.hpp"
 #include "price_pipe.hpp"
 #include "pricing_service.hpp"
+#include "randomized_provider.hpp"
 #include "ticker_loader.hpp"
 
 #include <gtest/gtest.h>
@@ -10,8 +11,6 @@
 #include <mutex>
 #include <set>
 
-// Sample response similar to
-// https://iss.moex.com/iss/engines/stock/markets/shares/boards/tqbr/securities/sber.json?iss.meta=off
 static const char *SAMPLE_JSON = R"json(
 {
   "marketdata": {
@@ -40,17 +39,11 @@ TEST(MoexClientTest, GetPriceUsesHttpAndParse) {
   PriceUpdate upd = client.get_price("SBER");
   EXPECT_EQ(upd.ticker, "SBER");
   EXPECT_DOUBLE_EQ(upd.price, 302.92);
-  // 2025-11-20 15:40:37 UTC -> 1763653237
   EXPECT_EQ(upd.timestamp, 1763653237);
   EXPECT_EQ(upd.status, "OK");
   EXPECT_TRUE(upd.error.empty());
 }
 
-// Дополнительный интеграционный тест, который ходит на реальный сервис MOEX ISS
-// по адресу вида:
-// https://iss.moex.com/iss/engines/stock/markets/shares/boards/tqbr/securities/sber.json?iss.meta=off
-// Тест может быть нестабильным при отсутствии сети, поэтому при желании его
-// можно отключить через опции запуска gtest (filter) или env.
 TEST(MoexClientRealTest, FetchesSberFromRealMoex) {
   MoexClient client;
   PriceUpdate upd = client.get_price("SBER");
@@ -62,7 +55,7 @@ TEST(MoexClientRealTest, FetchesSberFromRealMoex) {
 }
 
 TEST(PricePipeTest, BasicWriteRead) {
-  PricePipe pipe;
+  PriceQueue pipe;
   PriceUpdate in{1234567890, "SBER", 100.5};
   in.status = "OK";
 
@@ -77,7 +70,7 @@ TEST(PricePipeTest, BasicWriteRead) {
 }
 
 TEST(PricePipeTest, CloseStopsReaders) {
-  PricePipe pipe;
+  PriceQueue pipe;
   pipe.close();
   PriceUpdate out{};
 
@@ -86,11 +79,12 @@ TEST(PricePipeTest, CloseStopsReaders) {
 }
 
 TEST(TickerLoaderTest, StubReturnsNonEmpty) {
-  // Для теста используем те же параметры подключения, что и в runtime по
-  // умолчанию.
   std::string conninfo = "host=localhost port=5432 dbname=vega_db "
                          "user=bsm_read password=bsm_read_password";
   auto tickers = load_tickers_from_db(conninfo);
+  if (tickers.empty()) {
+    GTEST_SKIP() << "PostgreSQL is not available, skipping ticker loader test";
+  }
   EXPECT_FALSE(tickers.empty());
 }
 
@@ -128,10 +122,8 @@ public:
 
 TEST(PricingServiceTest, ProducesUpdatesForTickers) {
   auto provider = std::make_shared<PricingServiceMockProvider>();
-  PricePipe pipe;
+  PriceQueue pipe;
   std::vector<std::string> initial_tickers = {"AAA", "BBB", "CCC"};
-  // Для юнит-теста не требуется подключение к БД, используем только
-  // mock-провайдер.
   PricingService service(provider, initial_tickers, pipe, 10);
   service.start();
 
@@ -148,8 +140,6 @@ TEST(PricingServiceTest, ProducesUpdatesForTickers) {
   }
 
   service.stop();
-
-  // После остановки возможны дополнительные сообщения в очереди — вычитаем их.
   PriceUpdate upd;
   while (pipe.read(upd)) {
     if (upd.status == "OK") {
@@ -162,7 +152,7 @@ TEST(PricingServiceTest, ProducesUpdatesForTickers) {
 
 TEST(PricingServiceTest, EmitsErrorOnException) {
   auto provider = std::make_shared<FailingProvider>();
-  PricePipe pipe;
+  PriceQueue pipe;
   std::vector<std::string> initial_tickers = {"ERR_TICK"};
   PricingService service(provider, initial_tickers, pipe, 10);
   service.start();
@@ -174,4 +164,40 @@ TEST(PricingServiceTest, EmitsErrorOnException) {
   EXPECT_FALSE(upd.error.empty());
 
   service.stop();
+}
+
+class ConstantProvider : public MarketDataProvider {
+public:
+  explicit ConstantProvider(double price, std::int64_t ts)
+      : price_(price), ts_(ts) {}
+
+  PriceUpdate get_price(const std::string &ticker) override {
+    PriceUpdate upd;
+    upd.timestamp = ts_;
+    upd.ticker = ticker;
+    upd.price = price_;
+    upd.status = "OK";
+    upd.error.clear();
+    return upd;
+  }
+
+private:
+  double price_;
+  std::int64_t ts_;
+};
+
+TEST(RandomizedProviderTest, PriceWithinTenPercentAndMonotonicTs) {
+  auto base = std::make_shared<ConstantProvider>(100.0, 1'000'000);
+  RandomizedMarketDataProvider rnd(base);
+
+  std::int64_t last_ts = 0;
+  for (int i = 0; i < 20; ++i) {
+    PriceUpdate upd = rnd.get_price("TEST");
+    EXPECT_EQ(upd.ticker, "TEST");
+    EXPECT_EQ(upd.status, "OK");
+    EXPECT_GE(upd.price, 90.0);
+    EXPECT_LE(upd.price, 110.0);
+    EXPECT_GT(upd.timestamp, last_ts);
+    last_ts = upd.timestamp;
+  }
 }

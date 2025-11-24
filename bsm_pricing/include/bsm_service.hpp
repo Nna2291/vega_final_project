@@ -15,10 +15,6 @@
 #include <unordered_map>
 #include <vector>
 
-// Многопоточный сервис: из json_pipe берёт сырые JSON-строки,
-// парсит PriceUpdateIn, считывает конфигурацию BSM из PostgreSQL
-// и, если конфигурация для тикера найдена, считает BSM-цену опциона
-// и записывает результат в PostgreSQL.
 class BsmService {
 public:
   BsmService(PricePipe<std::string> &json_pipe, std::size_t num_threads,
@@ -28,6 +24,10 @@ public:
 
   void start();
   void stop();
+
+  void set_params_for_testing(const std::string &ticker, double K, double r,
+                              double q, double sigma, double T,
+                              long long ticker_id, long long conf_id);
 
 private:
   struct BsmParams {
@@ -52,8 +52,6 @@ private:
   std::condition_variable queue_cv_;
   bool queue_closed_{false};
 
-  // Очередь для рассчитанных котировок, которые должен записывать один поток в
-  // БД.
   std::queue<OptionQuote> out_queue_;
   std::mutex out_mutex_;
   std::condition_variable out_cv_;

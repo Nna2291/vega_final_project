@@ -1,3 +1,4 @@
+#include "cli_config.hpp"
 #include "moex_client.hpp"
 #include "price_pipe.hpp"
 #include "pricing_service.hpp"
@@ -27,7 +28,6 @@ std::string get_pipe_path() {
 }
 
 int open_fifo_for_writing(const std::string &path) {
-  // Создаём FIFO, если нужно.
   if (mkfifo(path.c_str(), 0666) < 0) {
     if (errno != EEXIST) {
       std::cerr << "Failed to create fifo at " << path << ": "
@@ -36,8 +36,6 @@ int open_fifo_for_writing(const std::string &path) {
     }
   }
 
-  // Открываем на запись; вызов будет блокировать, пока кто-нибудь не откроет
-  // FIFO на чтение.
   int fd = ::open(path.c_str(), O_WRONLY);
   if (fd < 0) {
     std::cerr << "Failed to open fifo for writing at " << path << ": "
@@ -48,16 +46,6 @@ int open_fifo_for_writing(const std::string &path) {
 }
 
 } // namespace
-
-struct CliConfig {
-  bool test_mode{false};
-  std::string pg_conninfo;
-  std::string pg_host;
-  std::string pg_port;
-  std::string pg_user;
-  std::string pg_password;
-  std::string pg_db;
-};
 
 CliConfig parse_cli(int argc, char **argv) {
   CliConfig cfg;
@@ -112,10 +100,9 @@ int main(int argc, char **argv) {
     std::cerr << "No tickers loaded from DB\n";
     return 1;
   }
-  // Интервал опроса каждого тикера — 500 мс.
   int interval_ms = 500;
 
-  PricePipe pipe;
+  PriceQueue pipe;
   auto base_provider = std::make_shared<MoexClient>();
   std::shared_ptr<MarketDataProvider> provider = base_provider;
   if (cfg.test_mode) {
@@ -130,9 +117,6 @@ int main(int argc, char **argv) {
   }
 
   service.start();
-
-  // Consumer loop: читаем из внутреннего PricePipe и отправляем JSON-строки в
-  // именованный канал.
   PriceUpdate update;
   while (pipe.read(update)) {
     std::string line = "{"

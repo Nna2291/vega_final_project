@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <string>
 
-// Входящее сообщение из сервиса цен
 struct PriceUpdateIn {
   std::int64_t timestamp{};
   std::string ticker;
@@ -12,7 +11,6 @@ struct PriceUpdateIn {
   std::string error;
 };
 
-// Результат прайсинга опциона
 struct OptionQuote {
   std::int64_t timestamp{};
   std::string ticker;

@@ -7,7 +7,7 @@
 
 PricingService::PricingService(std::shared_ptr<MarketDataProvider> provider,
                                std::vector<std::string> tickers,
-                               PricePipe &pipe, int interval_ms)
+                               PriceQueue &pipe, int interval_ms)
     : provider_(std::move(provider)), pipe_(pipe), interval_ms_(interval_ms),
       tickers_(std::move(tickers)) {}
 

@@ -14,7 +14,7 @@
 class PricingService {
 public:
   PricingService(std::shared_ptr<MarketDataProvider> provider,
-                 std::vector<std::string> tickers, PricePipe &pipe,
+                 std::vector<std::string> tickers, PriceQueue &pipe,
                  int interval_ms);
 
   ~PricingService();
@@ -26,7 +26,7 @@ private:
   void worker_thread(std::string ticker);
 
   std::shared_ptr<MarketDataProvider> provider_;
-  PricePipe &pipe_;
+  PriceQueue &pipe_;
   int interval_ms_;
 
   std::vector<std::string> tickers_;

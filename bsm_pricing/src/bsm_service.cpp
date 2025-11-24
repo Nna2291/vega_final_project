@@ -7,8 +7,6 @@
 namespace {
 
 bool parse_price_update(const std::string &line, PriceUpdateIn &out) {
-  // {"timestamp":..., "ticker":"...", "price":..., "status":"...",
-  // "error":"..."}
   try {
     auto get_value = [&](const std::string &key) -> std::string {
       auto pos = line.find("\"" + key + "\"");
@@ -66,6 +64,23 @@ BsmService::BsmService(PricePipe<std::string> &json_pipe,
 
 BsmService::~BsmService() { stop(); }
 
+void BsmService::set_params_for_testing(const std::string &ticker, double K,
+                                        double r, double q, double sigma,
+                                        double T, long long ticker_id,
+                                        long long conf_id) {
+  BsmParams p;
+  p.K = K;
+  p.r = r;
+  p.q = q;
+  p.sigma = sigma;
+  p.T = T;
+  p.ticker_id = ticker_id;
+  p.conf_id = conf_id;
+
+  std::lock_guard<std::mutex> lock(params_mutex_);
+  params_[ticker] = p;
+}
+
 void BsmService::start() {
   if (running_.exchange(true)) {
     return;
@@ -90,7 +105,6 @@ void BsmService::stop() {
   }
   queue_cv_.notify_all();
 
-  // Ждём завершения потоков-диспетчеров JSON и вычислителей.
   if (dispatcher_thread_.joinable()) {
     dispatcher_thread_.join();
   }
@@ -101,8 +115,6 @@ void BsmService::stop() {
   }
   threads_.clear();
 
-  // После завершения вычислителей больше не будет новых котировок — закрываем
-  // очередь out_queue_.
   {
     std::lock_guard<std::mutex> lock(out_mutex_);
     out_closed_ = true;
@@ -167,9 +179,6 @@ void BsmService::worker_thread() {
       out.status = "OK";
       out.error.clear();
     }
-
-    // Рабочий поток только считает цену и кладёт результат в очередь для
-    // потока записи в БД.
     {
       std::lock_guard<std::mutex> lock(out_mutex_);
       if (!out_closed_) {
@@ -230,9 +239,6 @@ void BsmService::db_thread() {
 
     if (writer.is_connected()) {
       if (!writer.write(out)) {
-        // В случае ошибки записи детали уже выведены внутри PostgresWriter.
-        // При желании можно добавить fallback в stdout, но пока просто
-        // продолжаем.
       }
     } else {
       std::cout << "{" << "\"timestamp\":" << out.timestamp << ","
@@ -243,7 +249,6 @@ void BsmService::db_thread() {
                 << out.error << "\"" << "}\n";
     }
 
-    // Периодически выводим размер очереди на запись в БД.
     auto now = std::chrono::steady_clock::now();
     if (now - last_log >= 1s) {
       std::cerr << "BsmService: pending DB writes: " << out_queue_size_.load()
