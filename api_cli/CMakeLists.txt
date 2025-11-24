@@ -11,6 +11,7 @@ add_library(moex_api
     src/pricing_service.cpp
     src/price_pipe.cpp
     src/ticker_loader.cpp
+    src/randomized_provider.cpp
 )
 
 target_include_directories(moex_api

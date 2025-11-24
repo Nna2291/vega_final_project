@@ -94,7 +94,7 @@ int main(int argc, char **argv) {
 
   PricePipe<std::string> json_pipe;
 
-  std::size_t threads = std::thread::hardware_concurrency();
+  std::size_t threads = std::thread::hardware_concurrency() * 4;
   if (threads == 0) {
     threads = 4;
   }
