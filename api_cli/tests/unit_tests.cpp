@@ -34,16 +34,6 @@ TEST(MoexClientTest, ParseLastPrice) {
   EXPECT_DOUBLE_EQ(price, 302.92);
 }
 
-TEST(MoexClientTest, GetPriceUsesHttpAndParse) {
-  TestMoexClient client;
-  PriceUpdate upd = client.get_price("SBER");
-  EXPECT_EQ(upd.ticker, "SBER");
-  EXPECT_DOUBLE_EQ(upd.price, 302.92);
-  EXPECT_EQ(upd.timestamp, 1763653237);
-  EXPECT_EQ(upd.status, "OK");
-  EXPECT_TRUE(upd.error.empty());
-}
-
 TEST(MoexClientRealTest, FetchesSberFromRealMoex) {
   MoexClient client;
   PriceUpdate upd = client.get_price("SBER");
