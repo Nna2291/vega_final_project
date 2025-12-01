@@ -14,7 +14,10 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <atomic>
+#include <chrono>
 #include <thread>
+#include <algorithm>
 #include <vector>
 
 namespace {
@@ -117,6 +120,34 @@ int main(int argc, char **argv) {
   }
 
   service.start();
+
+  // Фоновый поток, который периодически перечитывает список тикеров из БД
+  // и добавляет новые тикеры в PricingService без перезапуска процесса.
+  std::atomic<bool> reload_running{true};
+  std::thread reload_thread([&]() {
+    using namespace std::chrono_literals;
+    std::vector<std::string> known = tickers;
+    while (reload_running.load()) {
+      std::this_thread::sleep_for(5s);
+
+      auto fresh = load_tickers_from_db(cfg.pg_conninfo);
+      if (fresh.empty()) {
+        continue;
+      }
+
+      std::vector<std::string> to_add;
+      for (const auto &t : fresh) {
+        if (std::find(known.begin(), known.end(), t) == known.end()) {
+          known.push_back(t);
+          to_add.push_back(t);
+        }
+      }
+
+      if (!to_add.empty()) {
+        service.add_tickers(to_add);
+      }
+    }
+  });
   PriceUpdate update;
   while (pipe.read(update)) {
     std::string line = "{"
@@ -136,6 +167,11 @@ int main(int argc, char **argv) {
                 << std::strerror(errno) << "\n";
       break;
     }
+  }
+
+  reload_running.store(false);
+  if (reload_thread.joinable()) {
+    reload_thread.join();
   }
 
   ::close(fifo_fd);

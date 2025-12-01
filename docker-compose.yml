@@ -42,7 +42,10 @@ services:
     depends_on:
       - postgres
     environment:
+      PGHOST: postgres
+      PGUSER: vega_user
       PGPASSWORD: vega_password
+      PGDATABASE: vega_db
     volumes:
       - ./db_migrations:/db_migrations:ro
     command:
@@ -51,7 +54,7 @@ services:
       - |
         set -e
         echo "Waiting for postgres to be ready..."
-        until pg_isready -h postgres -U vega_user -d vega_db >/dev/null 2>&1; do
+        until pg_isready >/dev/null 2>&1; do
           sleep 1
         done
         echo "Postgres is ready, running migrations"
@@ -63,11 +66,11 @@ services:
         fi
         for f in "$${files[@]}"; do
           echo "Running migration $$f"
-          psql -h postgres -U vega_user -d vega_db -v ON_ERROR_STOP=1 -f "$$f"
+          psql -v ON_ERROR_STOP=1 -f "$$f"
         done
     restart: "no"
 
-  grafana:
+  grafana:grafana:
     image: grafana/grafana:11.0.0
     container_name: vega_grafana
     restart: unless-stopped
@@ -84,10 +87,55 @@ services:
       - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
       - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
 
+  api_cli:
+    build:
+      context: ./api_cli
+    container_name: vega_api_cli
+    depends_on:
+      - db_migrator
+    environment:
+      PRICING_PIPE_PATH: /pipe/pricing_pipe
+    command:
+      - ./build/pricing_service
+      - --pg-host
+      - postgres
+      - --pg-port
+      - "5432"
+      - --pg-user
+      - vega_user
+      - --pg-password
+      - vega_password
+      - --pg-db
+      - vega_db
+    volumes:
+      - pricing_pipe:/pipe
+
+  bsm_pricing:
+    build:
+      context: ./bsm_pricing
+    container_name: vega_bsm_pricing
+    depends_on:
+      - api_cli
+    command:
+      - ./build/bsm_pricing
+      - --pg-host
+      - postgres
+      - --pg-port
+      - "5432"
+      - --pg-user
+      - vega_user
+      - --pg-password
+      - vega_password
+      - --pg-db
+      - vega_db
+      - --pipe-path
+      - /pipe/pricing_pipe
+    volumes:
+      - pricing_pipe:/pipe
+
 volumes:
   pgdata:
     driver: local
   grafana_data:
     driver: local
-
 

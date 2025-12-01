@@ -8,7 +8,6 @@
 #include <mutex>
 #include <string>
 #include <thread>
-#include <unordered_map>
 #include <vector>
 
 class PricingService {
@@ -22,6 +21,10 @@ public:
   void start();
   void stop();
 
+  // Добавить новые тикеры во время работы сервиса.
+  // Для каждого нового тикера запускается отдельный поток.
+  void add_tickers(const std::vector<std::string> &tickers);
+
 private:
   void worker_thread(std::string ticker);
 
@@ -31,6 +34,7 @@ private:
 
   std::vector<std::string> tickers_;
 
+  std::mutex mutex_;
   std::atomic<bool> running_{false};
   std::vector<std::thread> threads_;
 };
