@@ -4,8 +4,6 @@ RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         build-essential \
         cmake \
-        curl \
-        libcurl4-openssl-dev \
         libpq-dev \
         ca-certificates && \
     rm -rf /var/lib/apt/lists/*
@@ -15,13 +13,11 @@ WORKDIR /app
 # Копируем исходники в контейнер; каталог build игнорируется через .dockerignore
 COPY . /app
 
-# На всякий случай удаляем старый build (если он есть) и пересобираем
 RUN rm -rf build && \
     cmake -S . -B build -DBUILD_TESTING=OFF && \
     cmake --build build --config Release
 
-# Default command: run pricing_service. Connection parameters and pipe path are
-# provided via CLI arguments and environment variables.
-CMD ["./build/pricing_service"]
+# Default command: run bsm_pricing. Connection parameters and pipe path are passed via CLI args.
+CMD ["./build/bsm_pricing"]
 
 
