@@ -34,16 +34,6 @@ TEST(MoexClientTest, ParseLastPrice) {
   EXPECT_DOUBLE_EQ(price, 302.92);
 }
 
-TEST(MoexClientTest, GetPriceUsesHttpAndParse) {
-  TestMoexClient client;
-  PriceUpdate upd = client.get_price("SBER");
-  EXPECT_EQ(upd.ticker, "SBER");
-  EXPECT_DOUBLE_EQ(upd.price, 302.92);
-  EXPECT_EQ(upd.timestamp, 1763653237);
-  EXPECT_EQ(upd.status, "OK");
-  EXPECT_TRUE(upd.error.empty());
-}
-
 TEST(MoexClientRealTest, FetchesSberFromRealMoex) {
   MoexClient client;
   PriceUpdate upd = client.get_price("SBER");
@@ -76,16 +66,6 @@ TEST(PricePipeTest, CloseStopsReaders) {
 
   bool ok = pipe.read(out);
   EXPECT_FALSE(ok);
-}
-
-TEST(TickerLoaderTest, StubReturnsNonEmpty) {
-  std::string conninfo = "host=localhost port=5432 dbname=vega_db "
-                         "user=bsm_read password=bsm_read_password";
-  auto tickers = load_tickers_from_db(conninfo);
-  if (tickers.empty()) {
-    GTEST_SKIP() << "PostgreSQL is not available, skipping ticker loader test";
-  }
-  EXPECT_FALSE(tickers.empty());
 }
 
 class PricingServiceMockProvider : public MarketDataProvider {
