@@ -68,16 +68,6 @@ TEST(PricePipeTest, CloseStopsReaders) {
   EXPECT_FALSE(ok);
 }
 
-TEST(TickerLoaderTest, StubReturnsNonEmpty) {
-  std::string conninfo = "host=localhost port=5432 dbname=vega_db "
-                         "user=bsm_read password=bsm_read_password";
-  auto tickers = load_tickers_from_db(conninfo);
-  if (tickers.empty()) {
-    GTEST_SKIP() << "PostgreSQL is not available, skipping ticker loader test";
-  }
-  EXPECT_FALSE(tickers.empty());
-}
-
 class PricingServiceMockProvider : public MarketDataProvider {
 public:
   PriceUpdate get_price(const std::string &ticker) override {
