@@ -1,0 +1,125 @@
+{
+  "id": null,
+  "title": "Ticker Prices",
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 2,
+  "refresh": "10s",
+  "panels": [
+    {
+      "type": "table",
+      "title": "Configs",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "postgres", "name": "Vega Postgres" },
+          "format": "table",
+          "rawSql": "SELECT DISTINCT\n  p.id AS id,\n  COALESCE(p.conf_info, 'conf ' || p.id::text) AS name\nFROM ticker_price tp\nJOIN bsm_params p ON p.id = tp.conf_id\nORDER BY name;",
+          "timeColumn": "time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "id"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Select config",
+                    "url": "${__dashboardUrl}?var-config=${__value.raw}&var-ticker=${var-ticker}",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "name"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Select config",
+                    "url": "${__dashboardUrl}?var-config=${id}&var-ticker=${var-ticker}",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Calculated price by ticker",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "refId": "B",
+          "datasource": { "type": "postgres", "name": "Vega Postgres" },
+          "format": "time_series",
+          "rawSql": "SELECT tp.ts_exchange AS \"time\", tp.calculated_price AS value, t.name AS metric\nFROM ticker_price tp\nJOIN ticker t ON t.id = tp.ticker_id\nWHERE tp.conf_id = $config AND tp.ticker_id = $ticker\nORDER BY tp.ts_exchange;",
+          "timeColumn": "time",
+          "metricColumn": "metric",
+          "valueColumn": "value"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currency"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single" }
+      }
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "config",
+        "label": "Config",
+        "type": "query",
+        "datasource": { "type": "postgres", "name": "Vega Postgres" },
+        "refresh": 1,
+        "query": "SELECT DISTINCT p.id AS __value, COALESCE(p.conf_info, 'conf ' || p.id::text) AS __text\nFROM ticker_price tp\nJOIN bsm_params p ON p.id = tp.conf_id\nORDER BY __text;",
+        "includeAll": false,
+        "multi": false
+      },
+      {
+        "name": "ticker",
+        "label": "Ticker",
+        "type": "query",
+        "datasource": { "type": "postgres", "name": "Vega Postgres" },
+        "refresh": 1,
+        "query": "SELECT DISTINCT t.id AS __value, t.name AS __text\nFROM ticker_price tp\nJOIN ticker t ON t.id = tp.ticker_id\nORDER BY __text;",
+        "includeAll": false,
+        "multi": false
+      }
+    ]
+  },
+  "time": { "from": "now-6h", "to": "now" }
+}
+
+

@@ -67,8 +67,27 @@ services:
         done
     restart: "no"
 
+  grafana:
+    image: grafana/grafana:11.0.0
+    container_name: vega_grafana
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+
 volumes:
   pgdata:
+    driver: local
+  grafana_data:
     driver: local
 
 
