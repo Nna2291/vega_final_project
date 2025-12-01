@@ -4,6 +4,7 @@
 #include "ticker_loader.hpp"
 
 #include <chrono>
+#include <algorithm>
 
 PricingService::PricingService(std::shared_ptr<MarketDataProvider> provider,
                                std::vector<std::string> tickers,
@@ -18,6 +19,7 @@ void PricingService::start() {
     return;
   }
 
+  std::lock_guard<std::mutex> lock(mutex_);
   threads_.clear();
   threads_.reserve(tickers_.size());
   for (const auto &t : tickers_) {
@@ -30,13 +32,38 @@ void PricingService::stop() {
     return;
   }
 
-  for (auto &t : threads_) {
-    if (t.joinable()) {
-      t.join();
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (auto &t : threads_) {
+      if (t.joinable()) {
+        t.join();
+      }
     }
+    threads_.clear();
   }
-  threads_.clear();
   pipe_.close();
+}
+
+void PricingService::add_tickers(const std::vector<std::string> &tickers) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (!running_) {
+    // Если сервис ещё не запущен, просто добавим тикеры в список,
+    // потоки будут созданы при старте.
+    for (const auto &t : tickers) {
+      if (std::find(tickers_.begin(), tickers_.end(), t) == tickers_.end()) {
+        tickers_.push_back(t);
+      }
+    }
+    return;
+  }
+
+  for (const auto &t : tickers) {
+    if (std::find(tickers_.begin(), tickers_.end(), t) != tickers_.end()) {
+      continue;
+    }
+    tickers_.push_back(t);
+    threads_.emplace_back(&PricingService::worker_thread, this, t);
+  }
 }
 
 void PricingService::worker_thread(std::string ticker) {

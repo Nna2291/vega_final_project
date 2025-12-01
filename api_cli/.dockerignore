@@ -1,0 +1,9 @@
+build
+.git
+.gitignore
+cmake-build-*
+CTestTestfile.cmake
+CMakeFiles
+*.log
+
+
