@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   postgres:
     image: postgres:16
@@ -70,7 +68,7 @@ services:
         done
     restart: "no"
 
-  grafana:grafana:
+  grafana:
     image: grafana/grafana:11.0.0
     container_name: vega_grafana
     restart: unless-stopped
@@ -137,5 +135,7 @@ volumes:
   pgdata:
     driver: local
   grafana_data:
+    driver: local
+  pricing_pipe:
     driver: local
 
