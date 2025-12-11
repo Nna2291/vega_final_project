@@ -21,8 +21,6 @@ public:
   void start();
   void stop();
 
-  // Добавить новые тикеры во время работы сервиса.
-  // Для каждого нового тикера запускается отдельный поток.
   void add_tickers(const std::vector<std::string> &tickers);
 
 private:

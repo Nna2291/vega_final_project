@@ -47,8 +47,6 @@ void PricingService::stop() {
 void PricingService::add_tickers(const std::vector<std::string> &tickers) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (!running_) {
-    // Если сервис ещё не запущен, просто добавим тикеры в список,
-    // потоки будут созданы при старте.
     for (const auto &t : tickers) {
       if (std::find(tickers_.begin(), tickers_.end(), t) == tickers_.end()) {
         tickers_.push_back(t);

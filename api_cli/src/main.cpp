@@ -20,6 +20,8 @@
 #include <algorithm>
 #include <vector>
 
+using namespace std::chrono_literals;
+
 namespace {
 
 std::string get_pipe_path() {
@@ -100,8 +102,9 @@ int main(int argc, char **argv) {
 
   auto tickers = load_tickers_from_db(cfg.pg_conninfo);
   if (tickers.empty()) {
-    std::cerr << "No tickers loaded from DB\n";
-    return 1;
+    std::cerr << "No tickers loaded from DB\n Waiting for new\n";
+    tickers = load_tickers_from_db(cfg.pg_conninfo);
+    std::this_thread::sleep_for(5s);
   }
   int interval_ms = 500;
 
@@ -121,8 +124,6 @@ int main(int argc, char **argv) {
 
   service.start();
 
-  // Фоновый поток, который периодически перечитывает список тикеров из БД
-  // и добавляет новые тикеры в PricingService без перезапуска процесса.
   std::atomic<bool> reload_running{true};
   std::thread reload_thread([&]() {
     using namespace std::chrono_literals;

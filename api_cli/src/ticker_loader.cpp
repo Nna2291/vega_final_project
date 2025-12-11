@@ -17,10 +17,7 @@ std::vector<std::string> load_tickers_from_db(const std::string &conninfo) {
     }
     return result;
   }
-
-  // Загружаем только "текущие" тикеры, для которых есть параметры в bsm_params.
-  // Это позволяет автоматически синхронизировать список тикеров с теми,
-  // по которым реально считаются цены.
+  
   PGresult *res = PQexec(
       conn,
       "select t.name from ticker t "
